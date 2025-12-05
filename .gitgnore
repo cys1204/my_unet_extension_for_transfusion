@@ -1,0 +1,26 @@
+# 不要上傳模型
+checkpoints/
+*.pth
+*.pkl
+
+# 不要上傳輸出結果
+eval_results/
+logs/
+visualizations/
+
+# 不要上傳資料集
+seg_dataset*/
+dataset/
+datasets/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# VSCode 設定
+.vscode/
+
+# 虛擬環境
+venv/
+env/
+.venv/
