@@ -1,0 +1,24 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Model checkpoints
+checkpoints/
+*.pth
+
+# Logs
+logs/
+*.log
+
+# Dataset (避免誤上傳大型資料)
+seg_dataset*/
+*/masks/
+*/images/
+
+# IDE
+.vscode/
+.idea/
+
+# Others
+*.png
+*.jpg
