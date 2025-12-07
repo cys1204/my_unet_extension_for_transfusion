@@ -14,7 +14,7 @@
 
 # 📦 專案架構
 ```
-good_train/
+transfusion/
 │
 ├── U_net/
 │ ├── dataset.py
@@ -50,12 +50,26 @@ bottle 類別共 292 張影像。
 # 2️⃣ Split 可視化 dataset（7:2:1）
 
 執行以下 script，產生：
-
-    train/
-
-    val/
-
-    test/
+    
+    seg_dataset_visualization_GT
+        images
+            rain/
+            val/
+            test/
+        masks
+            train/
+            val/
+            test/
+            
+    seg_dataset_visualization_PSEUDO
+        images
+            rain/
+            val/
+            test/
+        masks
+            train/
+            val/
+            test/
 
 來源包含 Ground Truth / Pseudo Mask：
 
