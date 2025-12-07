@@ -39,7 +39,7 @@ ECCV_TransFusion/
 
 先做
     
-    dataset/mvtec/bpttle/train/good 的資料夾複製一份到 test 資料夾中，名字改成 good_train
+    dataset/mvtec/bottle/train/good 的資料夾複製一份到 test 資料夾中，名字改成 good_train
 
 然後執行
 
