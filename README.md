@@ -40,6 +40,7 @@ ECCV_TransFusion/
 先做
     
     dataset/mvtec/bottle/train/good 的資料夾複製一份到 test 資料夾中，名字改成 good_train
+    (這邊以bottle為例 記得改成自己要跑得類別)
 
 然後執行
 
@@ -54,6 +55,13 @@ ECCV_TransFusion/
 
 
 # 2️⃣ Split 可視化 dataset（7:2:1）
+
+重要！！！
+
+打開 split_visualization_dataset.py 改第10行
+ROOT = "experiments/transfusion_mvtec/visualizations/bottle"
+把 bottle 改成自己要跑得類別
+
 
 執行：
     
