@@ -1,4 +1,4 @@
-# good_train
+# 生成式期末專案
 本專案建立在 TransFusion + U-Net + DeepLabv3+ 的影像瑕疵分割流程之上，  
 提供 **GT（Ground Truth）版本** 以及 **Pseudo Mask（模型預測遮罩）版本** 的訓練與評估管線。
 
