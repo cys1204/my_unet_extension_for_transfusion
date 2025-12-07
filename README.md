@@ -14,8 +14,10 @@
 
 # 📦 專案架構
 ```
-transfusion/
+ECCV_TransFusion/
 │
+├── dataset/
+|  
 ├── U_net/
 │ ├── dataset.py
 │ ├── model_unet.py
@@ -34,24 +36,30 @@ transfusion/
 ---
 
 # 1️⃣ 產生可視化資料（TransFusion）
-由 TransFusion 產生可視化 RGB：
 
-```
-python Experiment.py \
-    -c test \
-    -r transfusion_mvtec \
-    -d ./dataset/mvtec/ \
-    -ds mvtec \
-    --mode rgb \
-    --visualize \
-    --category bottle
-```
-bottle 類別共 292 張影像。
+先做
+    
+    dataset/mvtec/bpttle/train/good 的資料夾複製一份到 test 資料夾中，名字改成 good_train
+
+然後執行
+
+    python Experiment.py \
+        -c test \
+        -r transfusion_mvtec \
+        -d ./dataset/mvtec/ \
+        -ds mvtec \
+        --mode rgb \
+        --visualize \
+        --category bottle
+
+
 # 2️⃣ Split 可視化 dataset（7:2:1）
 
-先把 dataset/mvtec/bpttle/train/good 的資料夾複製一份到 test 資料夾中，名字改成 good_train
+執行：
+    
+    python split_visualization_dataset.py
 
-然後執行以下 script，產生：
+產生：
     
     seg_dataset_visualization_GT
         images
@@ -74,8 +82,6 @@ bottle 類別共 292 張影像。
             test/
 
 來源包含 Ground Truth / Pseudo Mask：
-
-python U_net/split_visualization_dataset.py
 
 輸出格式如下：
 ```
@@ -163,7 +169,7 @@ Loss	BCE（DeepLabv3+）或 BCE+Dice（U-Net）
 
 訓練完成後會輸出：
 
-logs/<model_name>/training_curve.png
+    logs/<model_name>/training_curve.png
 
 包含三條曲線：
 
@@ -175,10 +181,10 @@ logs/<model_name>/training_curve.png
 
 作者
 
-  CYS
+      CYS
 
-   生成式 AI 期末專案
+       生成式 AI 期末專案
 
-   模型：U-Net, DeepLabv3+
+       模型：U-Net, DeepLabv3+
 
-   任務：MVTec 瑕疵分割
+       任務：MVTec 瑕疵分割
