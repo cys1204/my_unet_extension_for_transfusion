@@ -49,7 +49,9 @@ python Experiment.py \
 bottle 類別共 292 張影像。
 # 2️⃣ Split 可視化 dataset（7:2:1）
 
-執行以下 script，產生：
+先把 dataset/mvtec/bpttle/train/good 的資料夾複製一份到 test 資料夾中，名字改成 good_train
+
+然後執行以下 script，產生：
     
     seg_dataset_visualization_GT
         images
