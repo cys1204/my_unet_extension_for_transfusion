@@ -1,263 +1,156 @@
 import os
+import sys
 import argparse
-from typing import Optional
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
-
-from sklearn.metrics import roc_auc_score
-from scipy.ndimage import label
-
-import albumentations as A
 import cv2
+from torch.utils.data import DataLoader
+from sklearn.metrics import roc_auc_score, average_precision_score
+
+# ---------------------------------------------------------
+# 讓 Python 看得到專案根目錄 (ECCV_TransFusion)
+# ---------------------------------------------------------
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, ROOT)
 
 from dataset import SegmentationDataset
 from model_unet import UNet
+from utils import EvaluationUtils, VisualizationUtils
 
 
-# ----------------------------
-# Transform
-# ----------------------------
-def get_eval_transform(img_size: int = 256):
+def normalize_like_experiment(pred_np):
+    """模仿 Experiment.py 的 normalize 行為，使視覺化公平"""
+    p_min = pred_np.min()
+    p_max = pred_np.max()
+    pred_np = (pred_np - p_min) / (p_max - p_min + 1e-6)
+    return pred_np
+
+
+def evaluate_unet(model, dataset, device, out_dir):
     """
-    評估時不做增強，只做 Resize，需跟訓練時的大小一致
+     - model: UNet
+     - dataset: SegmentationDataset
+     - out_dir: 例如 seg_results/bottle/unet
     """
-    return A.Compose([
-        A.Resize(img_size, img_size),
-    ])
+    os.makedirs(out_dir, exist_ok=True)
 
-
-# ----------------------------
-# PRO 計算函式
-# ----------------------------
-def compute_pro(all_preds: np.ndarray,
-                all_gts: np.ndarray,
-                num_thresholds: int = 50) -> float:
-    """
-    計算 Per-Region Overlap (PRO) 分數
-
-    all_preds: (N, H, W) 浮點數 anomaly map, range [0, 1]
-    all_gts:   (N, H, W) 0/1 ground truth mask
-    """
-    all_preds = all_preds.astype(np.float32)
-    all_gts = (all_gts > 0.5).astype(np.uint8)
-
-    N, H, W = all_preds.shape
-    thresholds = np.linspace(0, 1, num_thresholds)
-
-    pro_values = []
-
-    for thr in thresholds:
-        # 二值化 prediction
-        preds_bin = all_preds >= thr  # bool, shape (N, H, W)
-        region_overlaps = []
-
-        for n in range(N):
-            gt = all_gts[n]
-            pred = preds_bin[n]
-
-            # 對 GT 做連通區域標記（每個 defect region 一個 label）
-            labeled_gt, num_regions = label(gt)
-
-            if num_regions == 0:
-                continue
-
-            for rid in range(1, num_regions + 1):
-                region = (labeled_gt == rid)
-
-                inter = np.logical_and(region, pred).sum()
-                denom = region.sum()
-                if denom == 0:
-                    continue
-
-                overlap = inter / float(denom)
-                region_overlaps.append(overlap)
-
-        if len(region_overlaps) == 0:
-            pro_values.append(0.0)
-        else:
-            pro_values.append(float(np.mean(region_overlaps)))
-
-    # 對所有 threshold 的 PRO 取平均
-    pro_score = float(np.mean(pro_values))
-    return pro_score
-
-
-# ----------------------------
-# Main Evaluation + Visualization
-# ----------------------------
-def main(category: str,
-         dataset_root: str = "seg_dataset",
-         tag: Optional[str] = None,
-         img_size: int = 256,
-         num_thresholds: int = 50,
-         save_vis: bool = True,
-         vis_root: str = "eval_results"):
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Using device: {device}")
-
-    # --- 確定模型名稱與路徑 ---
-    model_name = f"unet_{category}"
-    if tag:
-        model_name += f"_{tag}"
-    model_path = os.path.join("checkpoints", f"{model_name}.pth")
-
-    if not os.path.exists(model_path):
-        print(f"[錯誤] 找不到模型：{model_path}")
-        return
-
-    print(f"載入模型：{model_path}")
-    model = UNet().to(device)
-    state_dict = torch.load(model_path, map_location=device)
-    model.load_state_dict(state_dict)
-    model.eval()
-
-    # --- 建立 test dataset + dataloader ---
-    # 結構預期：
-    #   dataset_root/category/images/test/*.png
-    #   dataset_root/category/masks/test/*.png
-    class_root = os.path.join(dataset_root, category)
-    transform = get_eval_transform(img_size=img_size)
-    dataset = SegmentationDataset(class_root, split="test", transform=transform)
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
+    preds_list, gts_list = [], []
 
-    print(f"測試資料數量：{len(dataset)}")
-
-    # --- 可視化輸出資料夾 ---
-    run_name = category if tag is None else f"{category}_{tag}"
-    out_dir = os.path.join(vis_root, run_name)
-    if save_vis:
-        os.makedirs(out_dir, exist_ok=True)
-        print(f"可視化結果將輸出到: {out_dir}")
-
-    all_preds = []
-    all_gts = []
-
+    model.eval()
     with torch.no_grad():
         for idx, (img, mask) in enumerate(loader):
-            # img: (1,3,H,W), mask: (1,1,H,W)
-            img = img.to(device)
-            mask = mask.to(device)
+            img = img.to(device)                    # [1,3,H,W]
+            gt = mask.squeeze().cpu().numpy()      # [H,W] in {0,1}
 
-            pred = model(img)                    # (1,1,H,W)
-            pred_np = pred.squeeze().cpu().numpy()   # (H,W)
-            gt_np = mask.squeeze().cpu().numpy()     # (H,W)
+            # ---- 推論 ----
+            logits = model(img)                    # [1,1,H,W] or [1,H,W]
+            if logits.dim() == 4:
+                logits = logits[:, 0, :, :]
 
-            all_preds.append(pred_np)
-            all_gts.append(gt_np)
+            pred = torch.sigmoid(logits)
+            pred_np = pred.squeeze().cpu().numpy()
 
-            if save_vis:
-                # 從 tensor 還原原圖 (RGB, [0,1]) -> uint8 BGR
-                img_np = img[0].detach().cpu().permute(1, 2, 0).numpy()
-                img_np = (img_np * 255.0).clip(0, 255).astype(np.uint8)
-                img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+            # ---- ★ normalize 與 Experiment 一致 ----
+            pred_np_norm = normalize_like_experiment(pred_np)
 
-                # GT mask: 0/1 -> 0/255
-                gt_vis = (gt_np * 255).astype(np.uint8)
+            preds_list.append(pred_np_norm)
+            gts_list.append(gt)
 
-                # Pred binary mask: threshold 0.5
-                pred_bin = (pred_np > 0.5).astype(np.uint8) * 255
+            # ---- 視覺化輸出 ----
+            img_np = img[0].cpu().numpy().transpose(1, 2, 0)
+            img_np = np.clip(img_np, 0, 1)
 
-                # Heatmap (根據 pred_bin 或 pred_np 都可以，這裡用 pred_np 連續值)
-                # 先把 pred_np 正規化到 0~255
-                pred_norm = (pred_np - pred_np.min()) / (pred_np.max() - pred_np.min() + 1e-6)
-                pred_norm_u8 = (pred_norm * 255).astype(np.uint8)
-                heatmap = cv2.applyColorMap(pred_norm_u8, cv2.COLORMAP_JET)
+            base_name = f"{idx}"
 
-                # 疊合圖片 (Original 60% + Heatmap 40%)
-                overlay = cv2.addWeighted(img_bgr, 0.6, heatmap, 0.4, 0)
+            # GT mask
+            VisualizationUtils.save_img_cv2(
+                os.path.join(out_dir, f"{base_name}_true_mask.png"), gt
+            )
 
-                idx_str = f"{idx:03d}"
-                cv2.imwrite(os.path.join(out_dir, f"{idx_str}_image.png"), img_bgr)
-                cv2.imwrite(os.path.join(out_dir, f"{idx_str}_gt.png"), gt_vis)
-                cv2.imwrite(os.path.join(out_dir, f"{idx_str}_pred.png"), pred_bin)
-                cv2.imwrite(os.path.join(out_dir, f"{idx_str}_heatmap.png"), heatmap)
-                cv2.imwrite(os.path.join(out_dir, f"{idx_str}_overlay.png"), overlay)
+            # 預測 mask（與 TransFusion 相同 normalize 規則）
+            VisualizationUtils.save_img_cv2(
+                os.path.join(out_dir, f"{base_name}_mask.png"), pred_np_norm
+            )
 
-    all_preds = np.stack(all_preds, axis=0)  # (N,H,W)
-    all_gts = np.stack(all_gts, axis=0)      # (N,H,W)
+            # 原圖
+            VisualizationUtils.save_img_cv2(
+                os.path.join(out_dir, f"{base_name}_true.png"), img_np
+            )
 
-    # --- Pixel-wise AUROC ---
-    try:
-        roc_pixel = roc_auc_score(all_gts.flatten() > 0.5,
-                                  all_preds.flatten())
-    except ValueError:
-        # 如果全部都是 good（沒有 positive），roc_auc_score 會報錯
-        roc_pixel = float("nan")
+            # Heatmap 疊加（與 Experiment 相同）
+            VisualizationUtils.save_heatmap_over_img(
+                os.path.join(out_dir, f"{base_name}_heatmap.png"),
+                img_np,
+                pred_np_norm,
+            )
 
-    # --- PRO ---
-    pro_score = compute_pro(all_preds, all_gts, num_thresholds=num_thresholds)
+    preds = np.stack(preds_list)
+    gts = np.stack(gts_list)
 
-    print("\n===== 評估結果 =====")
-    print(f"Category      : {category}")
-    if tag:
-        print(f"Model tag     : {tag}")
-    print(f"Dataset root  : {dataset_root}")
-    print(f"Pixel AUROC   : {roc_pixel:.4f}")
-    print(f"PRO (region)  : {pro_score:.4f}")
-    if save_vis:
-        print(f"Visualization : {out_dir}")
-    print("====================\n")
+    # ---- 指標計算 ----
+    img_scores_pred = preds.reshape(preds.shape[0], -1).max(axis=1)
+    img_scores_true = gts.reshape(gts.shape[0], -1).max(axis=1)
+
+    auc_image = roc_auc_score(img_scores_true, img_scores_pred)
+    auc_pixel = roc_auc_score(gts.flatten(), preds.flatten())
+    ap_pixel = average_precision_score(gts.flatten(), preds.flatten())
+    pro = EvaluationUtils.compute_pro(preds, gts)
+
+    print("==============================")
+    print("UNet evaluation results")
+    print(f"Image AUROC : {auc_image:.4f}")
+    print(f"Pixel AUROC : {auc_pixel:.4f}")
+    print(f"Pixel AP    : {ap_pixel:.4f}")
+    print(f"PRO         : {pro:.4f}")
+    print("==============================")
+
+    return auc_pixel, ap_pixel, auc_image, pro
 
 
-# ----------------------------
-# CLI
-# ----------------------------
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--category",
-        type=str,
-        required=True,
-        help="MVTec 類別名稱 (例如: bottle)",
-    )
-    parser.add_argument(
-        "--dataset_root",
-        type=str,
-        default="seg_dataset",
-        help="資料集根目錄，例如 seg_dataset / seg_dataset_visualization_GT / seg_dataset_visualization_PSEUDO",
-    )
-    parser.add_argument(
-        "--tag",
-        type=str,
-        default="",
-        help="模型命名用的標籤（例如 GT, PSEUDO）",
-    )
-    parser.add_argument(
-        "--img_size",
-        type=int,
-        default=256,
-        help="輸入影像 resize 大小（需與訓練時一致）",
-    )
-    parser.add_argument(
-        "--num_thresholds",
-        type=int,
-        default=50,
-        help="計算 PRO 時使用的 threshold 數量",
-    )
-    parser.add_argument(
-        "--no_vis",
-        action="store_true",
-        help="如果加上此旗標，就只算指標、不輸出圖",
-    )
-    parser.add_argument(
-        "--vis_root",
-        type=str,
-        default="eval_results",
-        help="可視化輸出根目錄",
-    )
+
+    parser.add_argument("--model_path", required=True)
+    parser.add_argument("--dataset_root", required=True)
+    parser.add_argument("--category", type=str, default=None)
+    parser.add_argument("--out_root", type=str, default="seg_results")
 
     args = parser.parse_args()
-    tag = args.tag if args.tag != "" else None
 
-    main(
-        category=args.category,
-        dataset_root=args.dataset_root,
-        tag=tag,
-        img_size=args.img_size,
-        num_thresholds=args.num_thresholds,
-        save_vis=not args.no_vis,
-        vis_root=args.vis_root,
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # 若未指定 category → 自動從路徑最後一層推斷
+    if args.category is None:
+        category = os.path.basename(os.path.normpath(args.dataset_root))
+    else:
+        category = args.category
+
+    # 创建 dataset
+    dataset = SegmentationDataset(
+        root=args.dataset_root,
+        split="test",
+        transform=None,
     )
+
+    model = UNet().to(device)
+    state = torch.load(args.model_path, map_location=device)
+    model.load_state_dict(state)
+
+    out_dir = os.path.join(args.out_root, category, "unet")
+
+    auc_pixel, ap_pixel, auc_image, pro = evaluate_unet(
+        model, dataset, device, out_dir
+    )
+
+    print("==== Summary (UNet) ====")
+    print(f"Pixel AUROC : {auc_pixel:.4f}")
+    print(f"Pixel AP    : {ap_pixel:.4f}")
+    print(f"Image AUROC : {auc_image:.4f}")
+    print(f"PRO         : {pro:.4f}")
+    print("========================")
+
+
+if __name__ == "__main__":
+    main()
