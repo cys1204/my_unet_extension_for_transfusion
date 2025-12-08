@@ -57,7 +57,7 @@ ECCV_TransFusion/
 # 2️⃣ Split 可視化 dataset（7:2:1）
 
 重要！！！
-
+因為一些問題 請自己把 ECCV_TransFusion裡面的 utils 資料夾複製到 U_net 和 DeepLabv3 中各一份！！！
 打開 split_visualization_dataset.py 改第10行
 ROOT = "experiments/transfusion_mvtec/visualizations/bottle"
 把 bottle 改成自己要跑得類別
