@@ -54,7 +54,7 @@ ECCV_TransFusion/
         --category bottle
 
 
-# 2️⃣ Split 可視化 dataset（7:2:1）
+# 2️⃣ Split 可視化 dataset（7:1:2）
 
 重要！！！
 因為一些問題 請自己把 ECCV_TransFusion裡面的 utils 資料夾複製到 U_net 和 DeepLabv3 中各一份！！！
