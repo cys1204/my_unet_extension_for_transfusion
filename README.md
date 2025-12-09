@@ -157,7 +157,7 @@ python DeepLabv3/train_deeplab.py
 python DeepLabv3/eval_deeplab_pro.py     --model_path checkpoints/deeplabv3_bottle_PSEUDO.pth     --dataset_root seg_dataset_visualization_PSEUDO     --category bottle
 ```
 
-# 5 TransFusion 評估
+# 5️⃣ TransFusion 評估
 ## 使用 Ground Truth
 ### 評估
 ```
