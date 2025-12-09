@@ -109,10 +109,7 @@ python U_net/train_unet.py \
 ```
 ### 評估
 ```
-python U_net/eval_unet_pro.py \
-    --category bottle \
-    --dataset_root seg_dataset_visualization_GT \
-    --tag GT
+ python U_net/eval_unet_pro.py     --model_path checkpoints/unet_bottle_GT.pth     --dataset_root seg_dataset_visualization_GT/bottle
 ```
 ## U-Net（使用 Pseudo Mask）
 ### 訓練
@@ -126,10 +123,7 @@ python U_net/train_unet.py \
 ```
 ### 評估
 ```
-python U_net/eval_unet_pro.py \
-    --category bottle \
-    --dataset_root seg_dataset_visualization_PSEUDO \
-    --tag PSEUDO
+ python U_net/eval_unet_pro.py     --model_path checkpoints/unet_bottle_PSEUDO.pth     --dataset_root seg_dataset_visualization_PSEUDO/bottle
 ```
 # 4️⃣ DeepLabv3+ 訓練與評估
 ## DeepLabv3+（使用 Ground Truth）
@@ -145,10 +139,7 @@ python DeepLabv3/train_deeplab.py
 
 ### 評估
 ```
-python DeepLabv3/eval_deeplab_pro.py
---category bottle
---dataset_root seg_dataset_visualization_PSEUDO
---tag PSEUDO
+python DeepLabv3/eval_deeplab_pro.py     --model_path checkpoints/deeplabv3_bottle_GT.pth     --dataset_root seg_dataset_visualization_GT     --category bottle
 ```
 ## DeepLabv3+（使用 Pseudo Mask）
 ### 訓練
@@ -163,29 +154,83 @@ python DeepLabv3/train_deeplab.py
 
 ### 評估
 ```
-python DeepLabv3/eval_deeplab_pro.py
---category bottle
---dataset_root seg_dataset_visualization_PSEUDO
---tag PSEUDO
+python DeepLabv3/eval_deeplab_pro.py     --model_path checkpoints/deeplabv3_bottle_PSEUDO.pth     --dataset_root seg_dataset_visualization_PSEUDO     --category bottle
 ```
+
+# 5 TransFusion 評估
+## 使用 Ground Truth
+### 評估
+```
+python experiment.py     -c test     --custom_seg_dataset seg_dataset_visualization_GT     --category bottle     --run-name transfusion_mvtec     --visualize     --mode rgb
+```
+
 
 # 📊 評估指標
 指標	說明
-IoU	segmentation overlap（越高越好）
-PRO	region-level overlap（適合 anomaly segmentation）
+⭐ 1. Image AUROC（影像層級 AUROC）
+👉 衡量模型「判斷整張圖片是否異常」的能力
+
+不是看每個像素，而是看整張圖是否有異常。
+如何計算：
+
+    每張圖取 模型預測 anomaly map 的最大值（max score）
+
+    與該圖是否異常（0/1 標籤）比較
+
+    計算 ROC 曲線下面積（AUC）
+
+代表意義：
+
+越接近 1 → 模型越能區分正常圖與異常圖。
+⭐ 2. Pixel AUROC（像素層級 AUROC）
+👉 衡量模型是否能在「像素層級」區分異常與正常
+
+每個像素都視為一個二分類問題。
+如何計算：
+
+    將所有像素展平
+
+    anomaly score vs GT mask（0/1）比較
+
+    計算 ROC‑AUC
+
+代表意義：
+
+越接近 1 → 模型越能清楚區分哪個像素是異常的。
+⭐ 3. Pixel AP（Pixel Average Precision）
+👉 衡量模型「像素層級」預測準確度的另一種方式
+
+特別適合檢測「異常區域較小」的任務。
+如何計算：
+
+    使用 precision-recall 曲線
+
+    計算面積（Average Precision，AP）
+
+代表意義：
+
+越高 → 模型對異常區域的偵測越精準、越不會亂亮整張圖。
+⭐ 4. PRO（Per-Region Overlap）
+👉 評估模型在「異常區域輪廓」的匹配程度
+
+比 Pixel AUROC 更能反映「模型是否畫對形狀」。
+如何計算（概念化）：
+
+    對不同 threshold 切出 binary mask
+
+    計算每個異常區域的 overlap（類似 IoU）
+
+    對多個 threshold 取平均 → 得到 PRO score
+
+代表意義：
+
+越高 → 預測到的異常形狀越準，越接近 GT 的輪廓。
+
+這是 anomaly segmentation 中最重要、但也最敏感的指標。
+
+
 Loss	BCE（DeepLabv3+）或 BCE+Dice（U-Net）
 
-訓練完成後會輸出：
-
-    logs/<model_name>/training_curve.png
-
-包含三條曲線：
-
-    Train Loss
-
-    Validation IoU
-
-    Validation PRO
 
 作者
 
