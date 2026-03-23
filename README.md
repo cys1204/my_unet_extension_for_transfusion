@@ -8,12 +8,11 @@
 - IoU、PRO 指標
 - 訓練與推論可視化工具
 ---
-📖 參考與致謝 (Acknowledgment)
+# 📖 參考與致謝 (Acknowledgment)
 本專案的基礎架構參考自以下研究成果，特此致謝：
 
 TransFusion: Robust LiDAR-Camera Fusion for 3D Object Detection with Normalizing Flows (ECCV 2022)
-
-Paper | Original Code
+* [📄 Paper](https://arxiv.org/abs/2311.09999) | [💻 Original Code](https://github.com/MaticFuc/ECCV_TransFusion)
 
 註：本專案將其核心特徵提取邏輯應用於 MVTec 影像瑕疵檢測任務。
 
