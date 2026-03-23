@@ -1,7 +1,5 @@
 # 生成式期末專案
-本專案建立在 TransFusion + U-Net + DeepLabv3+ 的影像瑕疵分割流程之上，  
-提供 **GT（Ground Truth）版本** 以及 **Pseudo Mask（模型預測遮罩）版本** 的訓練與評估管線。
-
+本專案基於 TransFusion (ECCV 2022) 框架進行延伸，整合了 U-Net 與 DeepLabv3+ 的影像瑕疵分割流程。我們使用了兩種訓練方式以作為比較：使用 Ground Truth (GT) 以及使用模型預測的 Pseudo Mask 進行監督學習與評估。
 本專案包含：
 
 - MVTec dataset 前處理（RGB→可視化 GT、Pseudo Mask）
@@ -9,6 +7,15 @@
 - DeepLabv3+ segmentation（GT / PSEUDO）
 - IoU、PRO 指標
 - 訓練與推論可視化工具
+---
+📖 參考與致謝 (Acknowledgment)
+本專案的基礎架構參考自以下研究成果，特此致謝：
+
+TransFusion: Robust LiDAR-Camera Fusion for 3D Object Detection with Normalizing Flows (ECCV 2022)
+
+Paper | Original Code
+
+註：本專案將其核心特徵提取邏輯應用於 MVTec 影像瑕疵檢測任務。
 
 ---
 
